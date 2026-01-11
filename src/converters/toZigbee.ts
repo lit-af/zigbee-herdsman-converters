@@ -76,8 +76,9 @@ export const light_color: Tz.Converter = {
         }
 
         if (newColor.isRGB() || newColor.isXY()) {
+            const gamut = libColor.getDeviceGamut(Array.isArray(meta.mapped) ? meta.mapped[0] : meta.mapped);
             // Convert RGB to XY color mode because Zigbee doesn't support RGB (only x/y and hue/saturation)
-            const xy = newColor.isRGB() ? newColor.rgb.gammaCorrected().toXY().rounded(4) : newColor.xy;
+            const xy = newColor.isRGB() ? newColor.rgb.toXY(gamut).rounded(4) : newColor.xy;
 
             // Some bulbs e.g. RB 185 C don't turn to red (they don't respond at all) when x: 0.701 and y: 0.299
             // is send. These values are e.g. send by Home Assistant when clicking red in the color wheel.
@@ -103,7 +104,7 @@ export const light_color: Tz.Converter = {
             const hsv = newColor.hsv;
             const hsvCorrected = hsv.colorCorrected(meta);
             newState.color_mode = constants.colorModeLookup[0];
-            newState.color = hsv.toObject(false);
+            newState.color = hsv.toObject(true);
 
             if (hsv.value !== null && utils.isObject(value)) {
                 await entity.command(
@@ -168,7 +169,9 @@ export const light_color: Tz.Converter = {
             throw new Error("Invalid color");
         }
 
-        return {state: libColor.syncColorState(newState, meta.state, entity, meta.options)};
+        const gamut = libColor.getDeviceGamut(Array.isArray(meta.mapped) ? meta.mapped[0] : meta.mapped);
+
+        return {state: libColor.syncColorState(newState, meta.state, entity, meta.options, undefined, gamut)};
     },
     convertGet: async (entity, key, meta) => {
         await entity.read("lightingColorCtrl", light.readColorAttributes(entity, meta));
@@ -204,8 +207,18 @@ export const light_colortemp: Tz.Converter = {
             {colortemp: value as number, transtime: utils.getTransition(entity, key, meta).time, optionsMask: 0, optionsOverride: 0},
             utils.getOptions(meta.mapped, entity),
         );
+
+        const gamut = libColor.getDeviceGamut(Array.isArray(meta.mapped) ? meta.mapped[0] : meta.mapped);
+
         return {
-            state: libColor.syncColorState({color_mode: constants.colorModeLookup[2], color_temp: value}, meta.state, entity, meta.options),
+            state: libColor.syncColorState(
+                {color_mode: constants.colorModeLookup[2], color_temp: value},
+                meta.state,
+                entity,
+                meta.options,
+                undefined,
+                gamut,
+            ),
         };
     },
     convertGet: async (entity, key, meta) => {
@@ -1137,8 +1150,18 @@ export const light_color_and_colortemp_via_color: Tz.Converter = {
                 },
                 utils.getOptions(meta.mapped, entity),
             );
+
+            const gamut = libColor.getDeviceGamut(Array.isArray(meta.mapped) ? meta.mapped[0] : meta.mapped);
+
             return {
-                state: libColor.syncColorState({color_mode: constants.colorModeLookup[2], color_temp: value}, meta.state, entity, meta.options),
+                state: libColor.syncColorState(
+                    {color_mode: constants.colorModeLookup[2], color_temp: value},
+                    meta.state,
+                    entity,
+                    meta.options,
+                    undefined,
+                    gamut,
+                ),
             };
         }
     },
@@ -3114,8 +3137,9 @@ export const tuya_led_control: Tz.Converter = {
                 color_mode: constants.colorModeLookup[2],
                 color_temp: meta.message.color_temp,
             };
+            const gamut = libColor.getDeviceGamut(Array.isArray(meta.mapped) ? meta.mapped[0] : meta.mapped);
 
-            return {state: libColor.syncColorState(newState, meta.state, entity, meta.options)};
+            return {state: libColor.syncColorState(newState, meta.state, entity, meta.options, undefined, gamut)};
         }
 
         if (key === "color_temp") {
@@ -3141,8 +3165,9 @@ export const tuya_led_control: Tz.Converter = {
                 color_mode: constants.colorModeLookup[2],
                 color_temp: value,
             };
+            const gamut = libColor.getDeviceGamut(Array.isArray(meta.mapped) ? meta.mapped[0] : meta.mapped);
 
-            return {state: libColor.syncColorState(newState, meta.state, entity, meta.options)};
+            return {state: libColor.syncColorState(newState, meta.state, entity, meta.options, undefined, gamut)};
         }
 
         const zclData = {
@@ -3210,8 +3235,9 @@ export const tuya_led_control: Tz.Converter = {
             },
             color_mode: constants.colorModeLookup[0],
         };
+        const gamut = libColor.getDeviceGamut(Array.isArray(meta.mapped) ? meta.mapped[0] : meta.mapped);
 
-        return {state: libColor.syncColorState(newState, meta.state, entity, meta.options)};
+        return {state: libColor.syncColorState(newState, meta.state, entity, meta.options, undefined, gamut)};
     },
     convertGet: async (entity, key, meta) => {
         await entity.read("lightingColorCtrl", ["currentHue", "currentSaturation", "tuyaBrightness", "tuyaRgbMode", "colorTemperature"]);
@@ -4020,7 +4046,9 @@ export const scene_recall: Tz.Converter = {
                         recalledState = addColorMode(recalledState);
                     }
 
-                    Object.assign(recalledState, libColor.syncColorState(recalledState, meta.state, entity, meta.options));
+                    const gamut = libColor.getDeviceGamut(Array.isArray(meta.mapped) ? meta.mapped[0] : meta.mapped);
+
+                    Object.assign(recalledState, libColor.syncColorState(recalledState, meta.state, entity, meta.options, undefined, gamut));
                     membersState[member.getDevice().ieeeAddr] = recalledState;
                 } else {
                     logger.warning(`Unknown scene was recalled for ${member.getDevice().ieeeAddr}, can't restore state.`, NS);
@@ -4037,7 +4065,9 @@ export const scene_recall: Tz.Converter = {
                 recalledState = addColorMode(recalledState);
             }
 
-            Object.assign(recalledState, libColor.syncColorState(recalledState, meta.state, entity, meta.options));
+            const gamut = libColor.getDeviceGamut(Array.isArray(meta.mapped) ? meta.mapped[0] : meta.mapped);
+
+            Object.assign(recalledState, libColor.syncColorState(recalledState, meta.state, entity, meta.options, undefined, gamut));
             logger.info("Successfully recalled scene", NS);
             return {state: recalledState};
         }
@@ -4135,9 +4165,10 @@ export const scene_add: Tz.Converter = {
                             extField: [0, 0, hScaled, sScaled, 0, 0, 0, 0],
                         });
                     } else {
+                        const gamut = libColor.getDeviceGamut(Array.isArray(meta.mapped) ? meta.mapped[0] : meta.mapped);
                         // The extensionFieldSet is always EnhancedCurrentHue according to ZCL
                         // When the bulb or all bulbs in a group do not support enhanchedHue,
-                        const colorXY = hsvCorrected.toXY();
+                        const colorXY = hsvCorrected.toXY(gamut);
                         const xScaled = utils.mapNumberRange(colorXY.x, 0, 1, 0, 65535);
                         const yScaled = utils.mapNumberRange(colorXY.y, 0, 1, 0, 65535);
                         extensionfieldsets.push({
@@ -4147,7 +4178,7 @@ export const scene_add: Tz.Converter = {
                         });
                     }
                     state.color_mode = constants.colorModeLookup[0];
-                    state.color = newColor.hsv.toObject(false, false);
+                    state.color = newColor.hsv.toObject(false);
                 }
             }
         }
